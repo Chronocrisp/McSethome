@@ -53,10 +53,10 @@ public final class Main extends JavaPlugin {
                     }
                 }
                 logger.info("--------SETHOME: All worlds storing homes loaded--------");
-            } catch (IOException e) {
-                logger.severe("Couldn't read plugin configuration file. Shutting Sethome down: " + e.toString());
-                getPluginLoader().disablePlugin(this);
-            }
+        } catch (IOException e) {
+            logger.severe("Couldn't read plugin configuration file. Shutting Sethome down: " + e.toString());
+            getPluginLoader().disablePlugin(this);
+        }
 
         registerCommands(commands, configFile); //has to be here as it's dependent on YAMLconfig checked earlier
     }

@@ -2,7 +2,7 @@ name: SetHomePlugin
 version: ${project.version}
 main: de.kunst.Main
 api-version: 1.17
-authors: [ Zeitachse ]
+authors: [ Chronocrisp ]
 description: A plugin to set a home to teleport to
 
 commands:
@@ -12,17 +12,16 @@ commands:
 
   acceptHomeInvitation:
     description: "Accepts an invitation."
-    aliases:
-      - ahi
+    aliases: ["ahi"]
 
   setMaxHomes:
     permission: op
     description: "Sets the max amount of homes a player can set: -1 -> no homes; 0 -> unlimited"
-    usage: "/setMaxHomes <int>"
+    usage: "/setMaxHomes <integer>"
 
   deleteHome:
     description: "Deletes the specified home."
-    usage: "/deleteHome <String>"
+    usage: "/deleteHome <name of home>"
 
   homes:
     description: "Shows you all the homes you have created."
@@ -30,8 +29,8 @@ commands:
 
   home:
     description: "Teleports you to a specific home"
-    usage: "/home <String>"
+    usage: "/home <name of home> <name of player to invite (optional)>"
 
   setHome:
     description: "Sets a home to later tp to"
-    usage: "/setHome <String>"
+    usage: "/setHome <name of home>"

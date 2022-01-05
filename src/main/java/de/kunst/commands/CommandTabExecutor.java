@@ -225,7 +225,6 @@ public class CommandTabExecutor implements TabExecutor {
                     }
                     return false;
                 }
-
             }
         } catch (ArrayIndexOutOfBoundsException e){
             sender.sendMessage(ChatColor.RED + "Please provide an argument.");
