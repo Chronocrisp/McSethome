@@ -1,5 +1,6 @@
 package de.kunst.commands;
 
+import de.kunst.config.SetHomeConfigFile;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -7,32 +8,30 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
 import org.bukkit.configuration.InvalidConfigurationException;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent;
 
-import java.io.*;
+import java.io.IOException;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class CommandTabExecutor implements TabExecutor {
-    private final File configFile;
-    private final YamlConfiguration configs;
+    private final SetHomeConfigFile configFile;
 
-    private final Logger logger = Bukkit.getLogger();
+    private final Logger logger;
     private final HashMap<UUID, Location> invitations = new HashMap<>();
 
-    public CommandTabExecutor(File fileIn){
+    public CommandTabExecutor(SetHomeConfigFile fileIn, Logger logger){
         configFile = fileIn;
-        configs = YamlConfiguration.loadConfiguration(fileIn);
+        this.logger = logger;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        final int maxHomes = configs.getInt("options.maxHomesPerPlayer");
+        final int maxHomes = configFile.getInt("options.maxHomesPerPlayer");
         final Player player = sender.getServer().getPlayer(sender.getName());
 
         if(!command.getName().equals("setMaxHomes") && !command.getName().equals("homes")){
@@ -46,18 +45,15 @@ public class CommandTabExecutor implements TabExecutor {
             switch (command.getName()) {
                 case "setAllowInvitations": {
                     final boolean allowsInvitations = Boolean.parseBoolean(args[0]);
-                    configs.set(sender.getName() + ".allowsInvitations", allowsInvitations);
-                    configs.save(configFile);
+                    configFile.setVal(sender.getName() + ".allowsInvitations", allowsInvitations);
                     sender.sendMessage(ChatColor.GOLD + (allowsInvitations ? "You now accept invitations." : "You won't receive invitations anymore."));
                     return true;
                 }
 
                 case "setMaxHomes": {
                     final int homesIn = Integer.parseInt(args[0]);
-                    configs.set("options.maxHomesPerPlayer", homesIn);
-                    configs.save(configFile);
+                    configFile.setVal("options.maxHomesPerPlayer", homesIn);
                     sender.sendMessage(ChatColor.GOLD + "Maximum amount of homes set to " + homesIn);
-                    logger.info("SETHOME: Maximum amount of homes set to " + homesIn);
                     return true;
                 }
 
@@ -79,7 +75,7 @@ public class CommandTabExecutor implements TabExecutor {
 
                 case "homes": {
                     final String playerName = (args.length > 0 && sender.isOp()) ? args[0] : sender.getName();
-                    final List<String> homes = findHomesOfPlayer(playerName);
+                    final List<String> homes = configFile.findHomesOfPlayer(playerName);
 
                     if (homes.isEmpty()) {
                         sender.sendMessage(ChatColor.RED + "No homes set yet.");
@@ -87,14 +83,14 @@ public class CommandTabExecutor implements TabExecutor {
                     }
                     sender.sendMessage(ChatColor.GOLD + "Homes of " + playerName);
                     for (String home : homes) {
-                        final Location loc = configs.getLocation(playerName + ".homes." + home);
+                        final Location loc = configFile.getLocation(playerName + ".homes." + home);
                         if (loc != null) sender.sendMessage(String.format("%s in %s", home, locToString(loc)));
                     }
                     return true;
                 }
 
                 case "home": {
-                    final Location loc = configs.getLocation(sender.getName() + ".homes." + args[0]);
+                    final Location loc = configFile.getLocation(sender.getName() + ".homes." + args[0]);
                     if (loc == null) {
                         sender.sendMessage(ChatColor.RED + "Could not find a home named " + args[0]);
                         return false;
@@ -131,7 +127,7 @@ public class CommandTabExecutor implements TabExecutor {
                     }
 
                     final String pathToAcceptsInvitations = playerFound.getName() + ".allowsInvitations";
-                    if (configs.isBoolean(pathToAcceptsInvitations) && !configs.getBoolean(pathToAcceptsInvitations)) {
+                    if (configFile.isBoolean(pathToAcceptsInvitations) && !configFile.getBoolean(pathToAcceptsInvitations)) {
                         sender.sendMessage(ChatColor.RED + "This player doesn't want to receive invitations.");
                         return true;
                     }
@@ -161,7 +157,7 @@ public class CommandTabExecutor implements TabExecutor {
                 }
 
                 case "setHome": {
-                    final List<String> homesOfThisPlayer = findHomesOfPlayer(sender.getName());
+                    final List<String> homesOfThisPlayer = configFile.findHomesOfPlayer(sender.getName());
                     //if home is being overwritten, don't add 1
                     final int homesSet = homesOfThisPlayer.size() + (homesOfThisPlayer.contains(args[0]) ? 0 : 1);
 
@@ -171,57 +167,28 @@ public class CommandTabExecutor implements TabExecutor {
                         return true;
                     }
 
-                    configs.set(sender.getName() + ".homes." + args[0], player.getLocation());
-                    configs.save(configFile);
-
+                    configFile.setVal(sender.getName() + ".homes." + args[0], player.getLocation());
                     sender.sendMessage(String.format("%sSuccessfully set home %s at %s", ChatColor.GOLD, args[0], locToString(player.getLocation())));
                     sender.sendMessage(String.format("You have %d homes.", homesSet));
                     return true;
                 }
 
                 case "deleteHome": {
-                    if (configs.getLocation(sender.getName() + ".homes." + args[0]) == null) {
+                    if (configFile.getLocation(sender.getName() + ".homes." + args[0]) == null) {
                         sender.sendMessage(String.format("%s You haven't set a home called %s yet.", ChatColor.RED, args[0]));
                         return false;
                     }
-                    try (final BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
-                        final StringBuilder stringBuilder = new StringBuilder();
-                        String line;
 
-                        logger.info(String.format("Sethome: Deleting home %s of %s", args[0], sender.getName()));
-                        while ((line = reader.readLine()) != null) {
-                            //skip the keys containing the home to delete
-                            if (line.contains(args[0])) {
-                                while (((line = reader.readLine()) != null) && (!line.contains("yaw: "))) ;
-                                continue; //skip the last line of the location string to exclude (yaw: ...)
-                            }
-                            //copy file contents
-                            stringBuilder.append(line);
-                            stringBuilder.append('\n');
-                        }
-                        reader.close();
-
-                        logger.info("SETHOME: Pasting remainders into file");
-                        try (final FileOutputStream stream = new FileOutputStream(configFile)) {
-                            stream.write(stringBuilder.toString().getBytes()); //paste remaining homes into file
-                            stream.flush();
-                        } catch (IOException e) {
-                            sender.sendMessage(ChatColor.RED + "Failed to write to config.yml.");
-                            logger.severe("Failed to write remainders into config.yml: " + e.toString());
-                            return false;
-                        }
-
-                        configs.load(configFile); //accept changes
-
-                        logger.info(String.format("Sethome: Successfully deleted home %s of %s", args[0], sender.getName()));
-                        sender.sendMessage(ChatColor.GOLD + "Successfully deleted home " + args[0]);
+                    try {
+                        configFile.deleteHome(args[0], sender.getName());
+                        sender.sendMessage(String.format("%sSuccessfully deleted home %s", ChatColor.GOLD, args[0]));
                         return true;
-                    } catch (IOException e) {
+                    } catch (IOException e){
                         sender.sendMessage(ChatColor.RED + "Failed to read config.yml.");
-                        logger.severe("Failed to read config.yml: " + e.toString());
-                    } catch (InvalidConfigurationException e) {
+                        logger.severe("Failed to read config.yml: " + e);
+                    } catch (InvalidConfigurationException e){
                         sender.sendMessage(ChatColor.RED + "Failed to reload configuration File.");
-                        logger.severe("Invalid configuration loaded: " + e.toString());
+                        logger.severe("Invalid configuration loaded: " + e);
                     }
                     return false;
                 }
@@ -230,7 +197,7 @@ public class CommandTabExecutor implements TabExecutor {
             sender.sendMessage(ChatColor.RED + "Please provide an argument.");
         } catch (IOException e) {
             sender.sendMessage(ChatColor.RED + "Couldn't read/write to config.yml");
-            logger.warning("Could not access configFile: " + e.toString());
+            logger.warning("Could not access configFile: " + e);
         } catch (NumberFormatException e){
             sender.sendMessage(ChatColor.RED + "Please provide an integer argument.");
         }
@@ -240,7 +207,7 @@ public class CommandTabExecutor implements TabExecutor {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         final List<String> empty = Collections.singletonList(" ");
-        final ArrayList<String> homesOfPlayer = new ArrayList<>(findHomesOfPlayer(sender.getName()));
+        final ArrayList<String> homesOfPlayer = new ArrayList<>(configFile.findHomesOfPlayer(sender.getName()));
         final List<String> onlinePlayers = sender.getServer().getOnlinePlayers().stream().map(HumanEntity::getName).collect(Collectors.toList());
 
         switch (command.getName()){
@@ -261,16 +228,6 @@ public class CommandTabExecutor implements TabExecutor {
                 return args.length == 1 ? homesOfPlayer : onlinePlayers;
         }
         return empty;
-    }
-
-    private List<String> findHomesOfPlayer(String playerName){
-        final List<String> res = new ArrayList<>();
-        for(String s : configs.getKeys(true)){
-            String[] splittedString = s.split("\\.");
-            if((splittedString.length <= 2) || (!splittedString[0].equals(playerName))) continue;
-            res.add(splittedString[splittedString.length-1]);
-        }
-        return res;
     }
 
     private String locToString(Location loc){
