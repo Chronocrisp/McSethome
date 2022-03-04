@@ -65,6 +65,7 @@ public final class Main extends JavaPlugin {
     //load unloaded worlds storing homes in config.yml to avoid an exception on startup
     public void checkForUnloadedWorlds() throws IOException{
         final File file = new File(getDataFolder().getAbsolutePath(), "config.yml");
+        file.setReadOnly();
 
         if(!file.exists()){
             logger.info("Config File hasn't been creted yet. Skipping world check.");
@@ -74,7 +75,7 @@ public final class Main extends JavaPlugin {
         final BufferedReader reader = new BufferedReader(new FileReader(file));
         String line;
 
-        logger.info("--------SETHOME: Looking for unloaded worlds containing a home--------");
+        logger.info("--------Looking for unloaded worlds containing a home--------");
         while((line = reader.readLine()) != null){
             if(line.contains("world: ")){
                 final String worldName = line.split(":")[1].trim();
@@ -84,6 +85,8 @@ public final class Main extends JavaPlugin {
                 }
             }
         }
-        logger.info("--------SETHOME: All worlds storing homes loaded--------");
+        reader.close();
+        file.setWritable(true);
+        logger.info("--------All worlds storing homes loaded--------");
     }
 }

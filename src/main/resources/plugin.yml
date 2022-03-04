@@ -7,7 +7,7 @@ description: A plugin to set a home to teleport to
 
 commands:
   setAllowInvitations:
-    description: "Blocks invitations"
+    description: "Enable/Disable invitations"
     usage: "/blockHomeInvitations <Boolean>"
 
   acceptHomeInvitation:
